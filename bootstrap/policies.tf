@@ -14,7 +14,7 @@ resource "oci_identity_policy" "github" {
         ],
         [
           for environment, config in local.environments :
-          "Allow any-user to manage objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.plan_principal_conditions[event_name]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}', target.object.name = '${config.state_key}.tflock' }"
+          "Allow any-user to manage objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.plan_principal_conditions[event_name]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}', target.object.name = '${config.state_key}.lock' }"
         ]
       )
     ]),
@@ -25,7 +25,7 @@ resource "oci_identity_policy" "github" {
         "Allow any-user to read buckets in compartment id ${oci_identity_compartment.lab.id} where all { ${local.apply_principal_conditions[environment]} }",
         "Allow any-user to read objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.apply_principal_conditions[environment]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}' }",
         "Allow any-user to manage objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.apply_principal_conditions[environment]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}', target.object.name = '${config.state_key}' }",
-        "Allow any-user to manage objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.apply_principal_conditions[environment]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}', target.object.name = '${config.state_key}.tflock' }"
+        "Allow any-user to manage objects in compartment id ${oci_identity_compartment.lab.id} where all { ${local.apply_principal_conditions[environment]}, target.bucket.name = '${oci_objectstorage_bucket.state.name}', target.object.name = '${config.state_key}.lock' }"
       ]
     ])
   )

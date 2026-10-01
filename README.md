@@ -38,7 +38,7 @@ repo:<owner>@<owner_id>/<repository>@<repository_id>:<context>
 
 For example, the dev apply principal ends in `:environment:dev`. The plan principals end in `:pull_request` or `:ref:refs/heads/main`.
 
-The default is deny. The plan identity can inspect compartments, read VCNs and state, and create or delete only each environment's exact `.tflock` object. It cannot write Terraform state or OCI resources. Each apply identity can manage VCNs only in its own environment compartment and can write only its own state and lock objects.
+The default is deny. The plan identity can inspect compartments, read VCNs and state, and create or delete only each environment's exact `.lock` object. It cannot write Terraform state or OCI resources. Each apply identity can manage VCNs only in its own environment compartment and can write only its own state and lock objects.
 
 Audience and workflow checks are independent trust gates around the immutable repository IDs and canonical subject. OCI Identity Propagation Trust currently supports at most five exact claim validations and three propagated claims. This implementation uses four validations (`repository`, `repository_owner_id`, `repository_id`, and the shared `OCI Terraform` workflow name) and all three propagation slots (`aud`, `event_name`, and `environment`) for short-lived workload context. Environment authorization belongs in OCI IAM policy, not separate trusts. OCI permits only one trust per issuer in an identity domain, and one trust serves all four environments.
 
