@@ -82,7 +82,10 @@ jobs:
           visible = {
               key: value
               for key, value in claims.items()
-              if key in ("sub", "iss", "aud") or key.startswith(("ext_", "res_"))
+              if (
+                  key in ("sub", "iss", "aud", "ptype", "resource_sub_type")
+                  or key.startswith(("res_", "var_ext_", "var_name"))
+              )
           }
           visible["claim_keys"] = sorted(claims)
           print(json.dumps(visible, indent=2, sort_keys=True))
