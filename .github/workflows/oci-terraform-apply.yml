@@ -80,10 +80,11 @@ jobs:
           payload += "=" * (-len(payload) % 4)
           claims = json.loads(base64.urlsafe_b64decode(payload))
           visible = {
-              key: claims[key]
-              for key in ("sub", "res_id", "res_type", "iss", "aud")
-              if key in claims
+              key: value
+              for key, value in claims.items()
+              if key in ("sub", "iss", "aud") or key.startswith(("ext_", "res_"))
           }
+          visible["claim_keys"] = sorted(claims)
           print(json.dumps(visible, indent=2, sort_keys=True))
           PY
 
