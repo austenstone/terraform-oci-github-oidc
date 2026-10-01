@@ -31,11 +31,12 @@ locals {
     exchange = {
       display_name           = "${var.name_prefix}-exchange"
       impersonating_resource = var.name_prefix
-      claim_propagations     = ["ext_aud", "ext_workflow", "ext_environment"]
+      claim_propagations     = ["ext_aud", "ext_event_name", "ext_environment"]
       claim_validations = {
         repository          = var.github_repository
         repository_owner_id = tostring(var.github_repository_owner_id)
         repository_id       = tostring(var.github_repository_id)
+        workflow            = "OCI Terraform"
       }
     }
   }
@@ -44,9 +45,7 @@ locals {
     for event_name in local.plan_events :
     event_name => join(", ", [
       "request.principal.type = 'identityfederateddomainapp'",
-      "request.principal.name = '${event_name == "pull_request" ? "${local.github_principal_prefix}:pull_request" : "${local.github_principal_prefix}:ref:refs/heads/${var.github_default_branch}"}'",
-      "request.principal.ext_aud = '${local.plan_audience}'",
-      "request.principal.ext_workflow = 'Terraform plan'"
+      "request.principal.name = '${event_name == "pull_request" ? "${local.github_principal_prefix}:pull_request" : "${local.github_principal_prefix}:ref:refs/heads/${var.github_default_branch}"}'"
     ])
   }
 
@@ -54,10 +53,7 @@ locals {
     for environment in keys(local.environments) :
     environment => join(", ", [
       "request.principal.type = 'identityfederateddomainapp'",
-      "request.principal.name = '${local.github_principal_prefix}:environment:${environment}'",
-      "request.principal.ext_aud = 'oci://${var.github_repository}/apply/${environment}'",
-      "request.principal.ext_workflow = 'Terraform apply'",
-      "request.principal.ext_environment = '${environment}'"
+      "request.principal.name = '${local.github_principal_prefix}:environment:${environment}'"
     ])
   }
 }

@@ -1,4 +1,4 @@
-name: Terraform apply
+name: OCI Terraform
 
 on:
   workflow_dispatch:
