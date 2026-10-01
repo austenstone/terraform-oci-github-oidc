@@ -1,0 +1,10 @@
+environment         = "stage"
+vcn_cidr            = "10.30.0.0/16"
+dns_label           = "stage"
+display_name        = "github-terraform-oidc-stage"
+owner               = "platform-engineering"
+cost_center         = "shared-services"
+service_tier        = "pre-production"
+data_classification = "confidential"
+change_tier         = "approval-required"
+

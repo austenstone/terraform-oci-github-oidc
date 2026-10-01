@@ -1,0 +1,10 @@
+environment         = "prod"
+vcn_cidr            = "10.40.0.0/16"
+dns_label           = "prod"
+display_name        = "github-terraform-oidc-prod"
+owner               = "platform-engineering"
+cost_center         = "shared-services"
+service_tier        = "critical"
+data_classification = "confidential"
+change_tier         = "approval-required"
+

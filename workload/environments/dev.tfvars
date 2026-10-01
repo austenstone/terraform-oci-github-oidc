@@ -1,0 +1,10 @@
+environment         = "dev"
+vcn_cidr            = "10.10.0.0/16"
+dns_label           = "dev"
+display_name        = "github-terraform-oidc-dev"
+owner               = "platform-engineering"
+cost_center         = "shared-services"
+service_tier        = "development"
+data_classification = "internal"
+change_tier         = "self-service"
+

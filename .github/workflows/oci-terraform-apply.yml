@@ -1,0 +1,85 @@
+name: OCI Terraform apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to change
+        required: true
+        type: choice
+        options: [dev, test, stage, prod]
+      operation:
+        description: Terraform operation
+        required: true
+        type: choice
+        options: [apply, destroy]
+
+permissions: {}
+
+concurrency:
+  group: oci-terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: ${{ inputs.operation }} (${{ inputs.environment }})
+    runs-on: ubuntu-slim
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: workload
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      OPERATION: ${{ inputs.operation }}
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_parent_compartment_id: ${{ vars.OCI_PARENT_COMPARTMENT_ID }}
+      TF_VAR_region: ${{ vars.OCI_REGION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.4
+
+      - name: Exchange GitHub OIDC token for OCI RPST
+        uses: gtrevorrow/oci-token-exchange-action@e8b0200e63131e48bc425ea4abf99135201b1e40 # v2.0.0
+        with:
+          oidc_client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
+          domain_base_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
+          oci_tenancy: ${{ vars.OCI_TENANCY_OCID }}
+          oci_region: ${{ vars.OCI_REGION }}
+          oidc_audience: oci://${{ github.repository }}/apply/${{ inputs.environment }}
+          oci_profile: GITHUB_OIDC
+          res_type: github-terraform-oidc
+          rpst_exp: "20"
+
+      - name: Initialize Terraform
+        env:
+          OCI_STATE_BUCKET: ${{ vars.OCI_STATE_BUCKET }}
+          OCI_STATE_NAMESPACE: ${{ vars.OCI_STATE_NAMESPACE }}
+          OCI_REGION: ${{ vars.OCI_REGION }}
+        run: |
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${OCI_STATE_BUCKET}" \
+            -backend-config="namespace=${OCI_STATE_NAMESPACE}" \
+            -backend-config="region=${OCI_REGION}" \
+            -backend-config="key=environments/${ENVIRONMENT}/terraform.tfstate"
+
+      - name: Create Terraform plan
+        run: |
+          plan_args=(-input=false -no-color -var-file="environments/${ENVIRONMENT}.tfvars" -out=tfplan)
+          if [[ "${OPERATION}" == "destroy" ]]; then
+            plan_args+=(-destroy)
+          fi
+          terraform plan "${plan_args[@]}"
+
+      - name: Apply Terraform plan
+        run: terraform apply -input=false -auto-approve tfplan

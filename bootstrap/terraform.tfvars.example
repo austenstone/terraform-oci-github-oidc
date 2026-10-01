@@ -1,0 +1,7 @@
+oci_profile           = "GITHUB_OCI_LAB"
+tenancy_ocid          = "ocid1.tenancy.oc1..replace-me"
+region                = "us-phoenix-1"
+identity_domain_url   = "https://idcs-replace-me.identity.oraclecloud.com:443"
+github_repository     = "owner/repository"
+github_default_branch = "main"
+name_prefix           = "github-terraform-oidc"

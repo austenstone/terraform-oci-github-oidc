@@ -1,0 +1,10 @@
+environment         = "test"
+vcn_cidr            = "10.20.0.0/16"
+dns_label           = "test"
+display_name        = "github-terraform-oidc-test"
+owner               = "platform-engineering"
+cost_center         = "shared-services"
+service_tier        = "pre-production"
+data_classification = "internal"
+change_tier         = "peer-review"
+
