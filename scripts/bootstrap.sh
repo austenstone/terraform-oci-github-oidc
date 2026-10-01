@@ -16,6 +16,14 @@ done
 
 repository="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
 default_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"
+repository_metadata="$(gh api "repos/${repository}")"
+repository_owner_id="$(jq -r '.owner.id' <<<"${repository_metadata}")"
+repository_id="$(jq -r '.id' <<<"${repository_metadata}")"
+
+if [[ ! "${repository_owner_id}" =~ ^[0-9]+$ ]] || [[ ! "${repository_id}" =~ ^[0-9]+$ ]]; then
+  echo "GitHub did not return numeric repository owner and repository IDs" >&2
+  exit 1
+fi
 
 tenancy_ocid="$(
   awk -v profile="${profile}" '
@@ -60,8 +68,13 @@ terraform -chdir="${bootstrap_dir}" apply -input=false -auto-approve \
   -var="region=${region}" \
   -var="identity_domain_url=${identity_domain_url}" \
   -var="github_repository=${repository}" \
+  -var="github_repository_owner_id=${repository_owner_id}" \
+  -var="github_repository_id=${repository_id}" \
   -var="github_default_branch=${default_branch}"
 
 chmod 600 "${bootstrap_dir}/terraform.tfstate"
+if [[ -f "${bootstrap_dir}/terraform.tfstate.backup" ]]; then
+  chmod 600 "${bootstrap_dir}/terraform.tfstate.backup"
+fi
 
 echo "OCI bootstrap complete. Run scripts/configure-github.sh ${repository}."

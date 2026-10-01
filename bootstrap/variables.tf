@@ -29,6 +29,16 @@ variable "github_repository" {
   }
 }
 
+variable "github_repository_owner_id" {
+  description = "Numeric GitHub owner ID used in OCI's canonical principal name."
+  type        = number
+}
+
+variable "github_repository_id" {
+  description = "Numeric GitHub repository ID used in OCI's canonical principal name."
+  type        = number
+}
+
 variable "github_default_branch" {
   description = "Default branch allowed to run manual plan jobs."
   type        = string

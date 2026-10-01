@@ -24,7 +24,7 @@ output "oidc_audiences" {
 output "environment_compartment_ids" {
   description = "OCI compartment OCIDs created for each environment."
   value = {
-    for environment in local.environments :
+    for environment in keys(local.environments) :
     environment => oci_identity_compartment.environment[environment].id
   }
 }
