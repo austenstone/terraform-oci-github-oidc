@@ -54,6 +54,7 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Authenticate to OCI
+        id: oci-auth
         uses: gtrevorrow/oci-token-exchange-action@e8b0200e63131e48bc425ea4abf99135201b1e40 # v2.0.0
         with:
           oidc_client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
@@ -64,6 +65,27 @@ jobs:
           oci_profile: GITHUB_OIDC
           res_type: github-terraform-oidc
           rpst_exp: "20"
+
+      - name: Show federated subject
+        env:
+          OCI_SESSION_TOKEN_PATH: ${{ steps.oci-auth.outputs.oci_session_token_path }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+
+          token = open(os.environ["OCI_SESSION_TOKEN_PATH"], encoding="utf-8").read().strip()
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          visible = {
+              key: claims[key]
+              for key in ("sub", "res_id", "res_type", "iss", "aud")
+              if key in claims
+          }
+          print(json.dumps(visible, indent=2, sort_keys=True))
+          PY
 
       - name: Initialize state
         run: |
