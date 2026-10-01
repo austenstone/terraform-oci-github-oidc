@@ -49,4 +49,4 @@ JSON
   fi
 done
 
-echo "GitHub repository variables, token-exchange secret, and four Environments are configured."
+echo "GitHub repository variables, confidential token-exchange credential, and four Environments are configured."

@@ -13,6 +13,11 @@ on:
         required: true
         type: choice
         options: [apply, destroy]
+      verify_cross_environment:
+        description: Prove the dev identity cannot mutate the test VCN
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -26,6 +31,7 @@ env:
 
 jobs:
   apply:
+    if: github.ref == 'refs/heads/main'
     name: ${{ inputs.operation == 'apply' && 'Apply' || 'Destroy' }} (${{ inputs.environment }})
     runs-on: ubuntu-slim
     environment: ${{ inputs.environment }}
@@ -54,16 +60,13 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Authenticate to OCI
-        uses: gtrevorrow/oci-token-exchange-action@e8b0200e63131e48bc425ea4abf99135201b1e40 # v2.0.0
+        uses: ./.github/actions/oci-rpst # zizmor: ignore[self-repository]
         with:
-          oidc_client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
-          domain_base_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
-          oci_tenancy: ${{ vars.OCI_TENANCY_OCID }}
-          oci_region: ${{ vars.OCI_REGION }}
-          oidc_audience: oci://${{ github.repository }}/apply/${{ inputs.environment }}
-          oci_profile: GITHUB_OIDC
-          res_type: github-terraform-oidc
-          rpst_exp: "20"
+          client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
+          identity_domain_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
+          tenancy_ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          audience: oci://${{ github.repository }}/apply/${{ inputs.environment }}
 
       - name: Initialize state
         run: |
@@ -94,3 +97,37 @@ jobs:
 
       - name: Apply plan
         run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Verify dev cannot mutate test
+        if: inputs.verify_cross_environment && inputs.environment == 'dev' && inputs.operation == 'apply'
+        run: |
+          probe_log="${RUNNER_TEMP}/cross-environment-probe.log"
+
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${OCI_STATE_BUCKET}" \
+            -backend-config="namespace=${OCI_STATE_NAMESPACE}" \
+            -backend-config="region=${TF_VAR_region}" \
+            -backend-config="key=environments/test/terraform.tfstate"
+
+          set +e
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -lock=false \
+            -no-color \
+            -refresh=false \
+            -var-file="environments/test.tfvars" \
+            -var="change_tier=authorization-probe" \
+            >"${probe_log}" 2>&1
+          probe_status=$?
+          set -e
+
+          if [[ ${probe_status} -eq 0 ]]; then
+            echo "Dev identity unexpectedly mutated the test environment" >&2
+            exit 1
+          fi
+
+          if ! grep -Eqi "not authorized|NotAuthorizedOrNotFound|authorization failed" "${probe_log}"; then
+            echo "Cross-environment probe failed for a reason other than OCI authorization" >&2
+            exit 1
+          fi

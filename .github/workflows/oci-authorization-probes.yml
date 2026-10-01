@@ -1,0 +1,100 @@
+name: OCI authorization probes
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Authorization boundary to verify
+        required: true
+        type: choice
+        options: [wrong-audience, wrong-workflow]
+
+permissions: {}
+
+env:
+  TERRAFORM_VERSION: 1.16.4
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  probe:
+    name: ${{ inputs.scenario }}
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Terraform
+        if: inputs.scenario == 'wrong-workflow'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Request rejected audience
+        id: wrong_audience
+        if: inputs.scenario == 'wrong-audience'
+        continue-on-error: true
+        uses: ./.github/actions/oci-rpst # zizmor: ignore[self-repository]
+        with:
+          client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
+          identity_domain_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
+          tenancy_ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          audience: oci://${{ github.repository }}/invalid
+
+      - name: Verify rejected audience
+        if: inputs.scenario == 'wrong-audience'
+        env:
+          EXCHANGE_OUTCOME: ${{ steps.wrong_audience.outcome }}
+        run: |
+          if [[ "${EXCHANGE_OUTCOME}" != "failure" ]]; then
+            echo "OCI accepted an audience outside the trust allowlist" >&2
+            exit 1
+          fi
+
+      - name: Authenticate unauthorized workflow
+        if: inputs.scenario == 'wrong-workflow'
+        uses: ./.github/actions/oci-rpst # zizmor: ignore[self-repository]
+        with:
+          client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
+          identity_domain_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
+          tenancy_ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          audience: oci://${{ github.repository }}/plan
+
+      - name: Verify unauthorized workflow
+        if: inputs.scenario == 'wrong-workflow'
+        working-directory: workload
+        env:
+          OCI_STATE_BUCKET: ${{ vars.OCI_STATE_BUCKET }}
+          OCI_STATE_NAMESPACE: ${{ vars.OCI_STATE_NAMESPACE }}
+          OCI_REGION: ${{ vars.OCI_REGION }}
+        run: |
+          probe_log="${RUNNER_TEMP}/wrong-workflow-probe.log"
+
+          set +e
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${OCI_STATE_BUCKET}" \
+            -backend-config="namespace=${OCI_STATE_NAMESPACE}" \
+            -backend-config="region=${OCI_REGION}" \
+            -backend-config="key=environments/dev/terraform.tfstate" \
+            >"${probe_log}" 2>&1
+          probe_status=$?
+          set -e
+
+          if [[ ${probe_status} -eq 0 ]]; then
+            echo "OCI IAM authorized an unexpected workflow" >&2
+            exit 1
+          fi
+
+          if ! grep -Eqi "not authorized|NotAuthorizedOrNotFound|authorization failed|status code: 404" "${probe_log}"; then
+            echo "Wrong-workflow probe failed for a reason other than OCI authorization" >&2
+            exit 1
+          fi

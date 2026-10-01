@@ -6,5 +6,4 @@ owner               = "platform-engineering"
 cost_center         = "shared-services"
 service_tier        = "development"
 data_classification = "internal"
-change_tier         = "self-service"
-
+change_tier         = "automated"

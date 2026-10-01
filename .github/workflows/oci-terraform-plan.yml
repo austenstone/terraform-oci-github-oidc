@@ -2,6 +2,12 @@ name: Terraform plan
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_read_only:
+        description: Prove the plan identity cannot mutate the dev VCN
+        required: false
+        type: boolean
+        default: false
   pull_request:
     paths:
       - .github/workflows/oci-terraform-plan.yml
@@ -54,16 +60,13 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Authenticate to OCI
-        uses: gtrevorrow/oci-token-exchange-action@e8b0200e63131e48bc425ea4abf99135201b1e40 # v2.0.0
+        uses: ./.github/actions/oci-rpst # zizmor: ignore[self-repository]
         with:
-          oidc_client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
-          domain_base_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
-          oci_tenancy: ${{ vars.OCI_TENANCY_OCID }}
-          oci_region: ${{ vars.OCI_REGION }}
-          oidc_audience: oci://${{ github.repository }}/plan
-          oci_profile: GITHUB_OIDC
-          res_type: github-terraform-oidc
-          rpst_exp: "20"
+          client_identifier: ${{ secrets.OCI_OIDC_CLIENT_IDENTIFIER }}
+          identity_domain_url: ${{ vars.OCI_IDENTITY_DOMAIN_URL }}
+          tenancy_ocid: ${{ vars.OCI_TENANCY_OCID }}
+          region: ${{ vars.OCI_REGION }}
+          audience: oci://${{ github.repository }}/plan
 
       - name: Initialize state
         run: |
@@ -79,6 +82,40 @@ jobs:
       - name: Plan
         run: |
           terraform plan \
+            -input=false \
+            -no-color \
+            -var-file="environments/${ENVIRONMENT}.tfvars"
+
+      - name: Verify plan identity is read-only
+        if: inputs.verify_read_only && matrix.environment == 'dev'
+        run: |
+          probe_log="${RUNNER_TEMP}/plan-mutation-probe.log"
+
+          set +e
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -lock=false \
+            -no-color \
+            -refresh=false \
+            -var-file="environments/${ENVIRONMENT}.tfvars" \
+            -var="change_tier=authorization-probe" \
+            >"${probe_log}" 2>&1
+          probe_status=$?
+          set -e
+
+          if [[ ${probe_status} -eq 0 ]]; then
+            echo "Plan identity unexpectedly mutated OCI resources" >&2
+            exit 1
+          fi
+
+          if ! grep -Eqi "not authorized|NotAuthorizedOrNotFound|authorization failed" "${probe_log}"; then
+            echo "Plan mutation probe failed for a reason other than OCI authorization" >&2
+            exit 1
+          fi
+
+          terraform plan \
+            -detailed-exitcode \
             -input=false \
             -no-color \
             -var-file="environments/${ENVIRONMENT}.tfvars"

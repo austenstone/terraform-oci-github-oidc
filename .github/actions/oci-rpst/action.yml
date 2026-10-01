@@ -1,0 +1,47 @@
+name: OCI RPST authentication
+description: Exchange a GitHub OIDC token for an OCI Resource Principal Session Token.
+
+inputs:
+  client_identifier:
+    description: OCI confidential client credential in client_id:client_secret form.
+    required: true
+  identity_domain_url:
+    description: OCI Identity Domain base URL.
+    required: true
+  tenancy_ocid:
+    description: OCI tenancy OCID.
+    required: true
+  region:
+    description: OCI region.
+    required: true
+  audience:
+    description: Audience requested from GitHub and accepted by OCI.
+    required: true
+  resource_type:
+    description: OCI Identity Propagation Trust impersonating resource.
+    required: false
+    default: github-terraform-oidc
+  rpst_expiration:
+    description: RPST lifetime in minutes.
+    required: false
+    default: "20"
+  profile:
+    description: OCI CLI profile to configure.
+    required: false
+    default: GITHUB_OIDC
+
+runs:
+  using: composite
+  steps:
+    - name: Exchange GitHub OIDC token
+      shell: bash
+      env:
+        OCI_OIDC_CLIENT_IDENTIFIER: ${{ inputs.client_identifier }}
+        OCI_IDENTITY_DOMAIN_URL: ${{ inputs.identity_domain_url }}
+        OCI_TENANCY_OCID: ${{ inputs.tenancy_ocid }}
+        OCI_REGION: ${{ inputs.region }}
+        OCI_OIDC_AUDIENCE: ${{ inputs.audience }}
+        OCI_RESOURCE_TYPE: ${{ inputs.resource_type }}
+        OCI_RPST_EXPIRATION: ${{ inputs.rpst_expiration }}
+        OCI_PROFILE: ${{ inputs.profile }}
+      run: "${GITHUB_ACTION_PATH}/exchange.sh"
